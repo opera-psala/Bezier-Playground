@@ -1,17 +1,10 @@
-import { BezierCurve, Point } from './types';
-import { getBezierPath } from './bezier';
+import { BezierCurve, Point } from '../types';
+import { getBezierPath } from '../bezier';
 
 export class CurveManager {
   private curves: BezierCurve[] = [];
   private activeCurveId: string | null = null;
-  private colorPalette = [
-    '#4a9eff',
-    '#ff4a9e',
-    '#4aff9e',
-    '#ff9e4a',
-    '#9e4aff',
-    '#4afff9',
-  ];
+  private colorPalette = ['#4a9eff', '#ff4a9e', '#4aff9e', '#ff9e4a', '#9e4aff', '#4afff9'];
   private nextColorIndex = 0;
 
   constructor() {

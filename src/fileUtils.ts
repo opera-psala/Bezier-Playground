@@ -1,4 +1,4 @@
-import { Point, BezierCurve } from './types';
+import { Point } from './types';
 
 export function validatePointsArray(points: unknown): points is Point[] {
   if (!Array.isArray(points)) return false;

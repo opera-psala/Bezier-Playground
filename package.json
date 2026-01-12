@@ -10,11 +10,15 @@
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,html}\""
   },
-  "keywords": ["bezier", "canvas", "interactive", "typescript"],
+  "keywords": [
+    "bezier",
+    "canvas",
+    "interactive",
+    "typescript"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^25.0.6",
     "@typescript-eslint/eslint-plugin": "^8.52.0",
     "@typescript-eslint/parser": "^8.52.0",
     "eslint": "^9.39.2",

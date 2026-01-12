@@ -87,7 +87,7 @@ export class Renderer {
     curves: BezierCurve[],
     activeCurveId: string | null,
     animatedPoints: Map<string, Point>,
-    visualizationMode: VisualizationMode = 'simple',
+    visualizationMode: VisualizationMode = 'default',
     animationProgress = 0
   ) {
     this.clear();
@@ -106,15 +106,10 @@ export class Renderer {
 
         if (
           isActive &&
-          (visualizationMode === 'decasteljau' ||
-            visualizationMode === 'tslider') &&
+          (visualizationMode === 'decasteljau' || visualizationMode === 'tslider') &&
           animationProgress > 0
         ) {
-          this.drawConstructionLines(
-            curve.points,
-            animationProgress,
-            curve.color
-          );
+          this.drawConstructionLines(curve.points, animationProgress, curve.color);
         }
       }
 

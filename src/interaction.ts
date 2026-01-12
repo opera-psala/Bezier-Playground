@@ -72,10 +72,7 @@ export class InteractionManager {
   private handleMouseUp = () => {
     if (this.draggingIndex !== null && this.dragStartPoint) {
       const endPoint = this.points[this.draggingIndex];
-      if (
-        this.dragStartPoint.x !== endPoint.x ||
-        this.dragStartPoint.y !== endPoint.y
-      ) {
+      if (this.dragStartPoint.x !== endPoint.x || this.dragStartPoint.y !== endPoint.y) {
         this.onUpdate({
           type: 'move',
           point: { ...endPoint },

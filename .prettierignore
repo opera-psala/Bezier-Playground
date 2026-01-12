@@ -1,5 +1,4 @@
 node_modules
 dist
-.claude
-*.config.js
-package-lock.json
+.vite
+*.json
