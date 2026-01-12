@@ -69,7 +69,7 @@ export class CurveManager {
   }
 
   clearAllCurves() {
-    this.curves = [];
+    this.curves.length = 0;
     this.addCurve();
   }
 
@@ -95,7 +95,8 @@ export class CurveManager {
 
   fromJSON(data: { curves: BezierCurve[] }) {
     if (data.curves && Array.isArray(data.curves)) {
-      this.curves = data.curves;
+      this.curves.length = 0;
+      this.curves.push(...data.curves);
       this.activeCurveId = this.curves[0]?.id || null;
     }
   }

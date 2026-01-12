@@ -1,12 +1,20 @@
 import { Point } from './types';
 
+export interface PointAction {
+  type: 'add' | 'remove' | 'move';
+  point: Point;
+  index?: number;
+  oldPoint?: Point;
+}
+
 export class InteractionManager {
   private canvas: HTMLCanvasElement;
   private points: Point[] = [];
   private draggingIndex: number | null = null;
-  private onUpdate: () => void;
+  private dragStartPoint: Point | null = null;
+  private onUpdate: (action?: PointAction) => void;
 
-  constructor(canvas: HTMLCanvasElement, onUpdate: () => void) {
+  constructor(canvas: HTMLCanvasElement, onUpdate: (action?: PointAction) => void) {
     this.canvas = canvas;
     this.onUpdate = onUpdate;
     this.setupEventListeners();
@@ -44,9 +52,12 @@ export class InteractionManager {
 
     if (index !== -1) {
       this.draggingIndex = index;
+      this.dragStartPoint = { ...this.points[index] };
     } else {
-      this.points.push(pos);
-      this.onUpdate();
+      this.onUpdate({
+        type: 'add',
+        point: { ...pos },
+      });
     }
   };
 
@@ -59,10 +70,22 @@ export class InteractionManager {
   };
 
   private handleMouseUp = () => {
-    if (this.draggingIndex !== null) {
-      this.onUpdate();
+    if (this.draggingIndex !== null && this.dragStartPoint) {
+      const endPoint = this.points[this.draggingIndex];
+      if (
+        this.dragStartPoint.x !== endPoint.x ||
+        this.dragStartPoint.y !== endPoint.y
+      ) {
+        this.onUpdate({
+          type: 'move',
+          point: { ...endPoint },
+          index: this.draggingIndex,
+          oldPoint: this.dragStartPoint,
+        });
+      }
     }
     this.draggingIndex = null;
+    this.dragStartPoint = null;
   };
 
   private handleContextMenu = (e: MouseEvent) => {
@@ -71,8 +94,12 @@ export class InteractionManager {
     const index = this.findPointAtPosition(pos);
 
     if (index !== -1) {
-      this.points.splice(index, 1);
-      this.onUpdate();
+      const removedPoint = { ...this.points[index] };
+      this.onUpdate({
+        type: 'remove',
+        point: removedPoint,
+        index,
+      });
     }
   };
 

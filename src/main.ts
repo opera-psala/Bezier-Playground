@@ -5,7 +5,14 @@ import { CurveManager } from './curveManager';
 import { exportToSVG } from './bezier';
 import { VisualizationMode, Point } from './types';
 import { validatePointsArray, validateCurvesData } from './fileUtils';
-import { HistoryManager } from './history';
+import {
+  HistoryManager,
+  AddPointCommand,
+  RemovePointCommand,
+  MovePointCommand,
+  AddCurveCommand,
+  RemoveCurveCommand,
+} from './history';
 
 class BezierApp {
   private canvas: HTMLCanvasElement;
@@ -23,10 +30,15 @@ class BezierApp {
 
     this.renderer = new Renderer(this.canvas);
     this.curveManager = new CurveManager();
-    this.history = new HistoryManager();
+
+    this.history = new HistoryManager({
+      curves: this.curveManager.getAllCurves(),
+      activeCurveId: this.curveManager.getActiveCurve()?.id || null,
+    });
+
     this.animation = new AnimationManager(() => this.render());
-    this.interaction = new InteractionManager(this.canvas, () => {
-      this.syncCurveWithInteraction();
+    this.interaction = new InteractionManager(this.canvas, action => {
+      this.syncCurveWithInteraction(action);
       this.render();
     });
 
@@ -37,7 +49,6 @@ class BezierApp {
     this.setupResizeHandler();
     this.setupKeyboardShortcuts();
 
-    this.saveHistory();
     this.render();
   }
 
@@ -188,7 +199,12 @@ class BezierApp {
       item.addEventListener('click', () => {
         this.curveManager.setActiveCurve(curve.id);
         this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
+
+        const state = this.history.getState();
+        state.activeCurveId = curve.id;
+
         dropdownMenu.classList.remove('open');
+        this.updateCurveSelector();
         this.render();
       });
 
@@ -206,43 +222,62 @@ class BezierApp {
     }
   }
 
-  private syncCurveWithInteraction() {
-    const points = this.interaction.getPoints();
-    this.curveManager.setActiveCurvePoints(points);
-    this.updateCurveSelector();
-    this.saveHistory();
+  private syncCurveWithInteraction(action?: import('./interaction').PointAction) {
+    const activeCurve = this.curveManager.getActiveCurve();
+    if (!activeCurve || !action) {
+      const points = this.interaction.getPoints();
+      this.curveManager.setActiveCurvePoints(points);
+      this.updateCurveSelector();
+      return;
+    }
+
+    switch (action.type) {
+      case 'add':
+        this.history.executeCommand(new AddPointCommand(activeCurve.id, action.point));
+        break;
+      case 'remove':
+        if (action.index !== undefined) {
+          this.history.executeCommand(
+            new RemovePointCommand(activeCurve.id, action.index, action.point)
+          );
+        }
+        break;
+      case 'move':
+        if (action.index !== undefined && action.oldPoint) {
+          this.history.executeCommand(
+            new MovePointCommand(
+              activeCurve.id,
+              action.index,
+              action.oldPoint,
+              action.point
+            )
+          );
+        }
+        break;
+    }
+
+    this.syncStateFromHistory();
   }
 
-  private saveHistory() {
-    const curves = this.curveManager.getAllCurves();
-    const activeCurve = this.curveManager.getActiveCurve();
-    this.history.saveState(curves, activeCurve?.id || null);
+  private syncStateFromHistory() {
+    const state = this.history.getState();
+    if (state.activeCurveId) {
+      this.curveManager.setActiveCurve(state.activeCurveId);
+    }
+    this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
+    this.updateCurveSelector();
   }
 
   private undo() {
-    const state = this.history.undo();
-    if (state) {
-      this.curveManager.fromJSON({ curves: state.curves });
-      if (state.activeCurveId) {
-        this.curveManager.setActiveCurve(state.activeCurveId);
-      }
-      this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
-      this.updateCurveSelector();
-      this.render();
-    }
+    this.history.undo();
+    this.syncStateFromHistory();
+    this.render();
   }
 
   private redo() {
-    const state = this.history.redo();
-    if (state) {
-      this.curveManager.fromJSON({ curves: state.curves });
-      if (state.activeCurveId) {
-        this.curveManager.setActiveCurve(state.activeCurveId);
-      }
-      this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
-      this.updateCurveSelector();
-      this.render();
-    }
+    this.history.redo();
+    this.syncStateFromHistory();
+    this.render();
   }
 
   private setupControls() {
@@ -278,29 +313,39 @@ class BezierApp {
       this.curveManager.clearAllCurves();
       this.interaction.setPoints([]);
       this.animation.stop();
-      this.updateCurveSelector();
       this.history.clear();
-      this.saveHistory();
+      this.updateCurveSelector();
       this.updateButtonStates();
       this.render();
     });
 
     newCurveBtn?.addEventListener('click', () => {
-      this.curveManager.addCurve();
-      this.interaction.setPoints([]);
-      this.updateCurveSelector();
-      this.saveHistory();
+      const newCurve = {
+        id: Math.random().toString(36).substr(2, 9),
+        color: this.curveManager['colorPalette'][this.curveManager['nextColorIndex']],
+        points: [],
+      };
+      this.curveManager['nextColorIndex'] =
+        (this.curveManager['nextColorIndex'] + 1) %
+        this.curveManager['colorPalette'].length;
+
+      this.history.executeCommand(new AddCurveCommand(newCurve));
+      this.syncStateFromHistory();
       this.render();
     });
 
     deleteCurveBtn?.addEventListener('click', () => {
       const activeCurve = this.curveManager.getActiveCurve();
       if (activeCurve) {
-        this.curveManager.removeCurve(activeCurve.id);
-        this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
-        this.updateCurveSelector();
-        this.saveHistory();
-        this.render();
+        const curves = this.curveManager.getAllCurves();
+        const index = curves.findIndex(c => c.id === activeCurve.id);
+        if (index !== -1) {
+          this.history.executeCommand(
+            new RemoveCurveCommand(activeCurve, index, activeCurve.id)
+          );
+          this.syncStateFromHistory();
+          this.render();
+        }
       }
     });
 
@@ -519,9 +564,9 @@ class BezierApp {
           return;
         }
 
+        this.history.clear();
         this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
         this.updateCurveSelector();
-        this.saveHistory();
         this.render();
       } catch (error) {
         if (error instanceof SyntaxError) {
