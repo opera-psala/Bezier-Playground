@@ -1,17 +1,14 @@
 import { Point } from './types';
-import { HistoryManager } from './history';
 
 export class InteractionManager {
   private canvas: HTMLCanvasElement;
   private points: Point[] = [];
   private draggingIndex: number | null = null;
   private onUpdate: () => void;
-  private history: HistoryManager;
 
   constructor(canvas: HTMLCanvasElement, onUpdate: () => void) {
     this.canvas = canvas;
     this.onUpdate = onUpdate;
-    this.history = new HistoryManager();
     this.setupEventListeners();
   }
 
@@ -49,7 +46,6 @@ export class InteractionManager {
       this.draggingIndex = index;
     } else {
       this.points.push(pos);
-      this.history.saveState(this.points);
       this.onUpdate();
     }
   };
@@ -64,7 +60,7 @@ export class InteractionManager {
 
   private handleMouseUp = () => {
     if (this.draggingIndex !== null) {
-      this.history.saveState(this.points);
+      this.onUpdate();
     }
     this.draggingIndex = null;
   };
@@ -76,7 +72,6 @@ export class InteractionManager {
 
     if (index !== -1) {
       this.points.splice(index, 1);
-      this.history.saveState(this.points);
       this.onUpdate();
     }
   };
@@ -87,39 +82,6 @@ export class InteractionManager {
 
   setPoints(points: Point[]) {
     this.points = points;
-    this.history.clear();
-    this.history.saveState(this.points);
-    this.onUpdate();
-  }
-
-  clearPoints() {
-    this.points = [];
-    this.history.clear();
-    this.onUpdate();
-  }
-
-  undo() {
-    const state = this.history.undo();
-    if (state !== null) {
-      this.points = state;
-      this.onUpdate();
-    }
-  }
-
-  redo() {
-    const state = this.history.redo();
-    if (state !== null) {
-      this.points = state;
-      this.onUpdate();
-    }
-  }
-
-  canUndo(): boolean {
-    return this.history.canUndo();
-  }
-
-  canRedo(): boolean {
-    return this.history.canRedo();
   }
 
   destroy() {

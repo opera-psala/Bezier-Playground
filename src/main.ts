@@ -5,6 +5,7 @@ import { CurveManager } from './curveManager';
 import { exportToSVG } from './bezier';
 import { VisualizationMode, Point } from './types';
 import { validatePointsArray, validateCurvesData } from './fileUtils';
+import { HistoryManager } from './history';
 
 class BezierApp {
   private canvas: HTMLCanvasElement;
@@ -12,6 +13,7 @@ class BezierApp {
   private interaction: InteractionManager;
   private animation: AnimationManager;
   private curveManager: CurveManager;
+  private history: HistoryManager;
   private visualizationMode: VisualizationMode = 'default';
   private manualT = 0;
 
@@ -21,6 +23,7 @@ class BezierApp {
 
     this.renderer = new Renderer(this.canvas);
     this.curveManager = new CurveManager();
+    this.history = new HistoryManager();
     this.animation = new AnimationManager(() => this.render());
     this.interaction = new InteractionManager(this.canvas, () => {
       this.syncCurveWithInteraction();
@@ -33,6 +36,8 @@ class BezierApp {
     this.setupDragAndDrop();
     this.setupResizeHandler();
     this.setupKeyboardShortcuts();
+
+    this.saveHistory();
     this.render();
   }
 
@@ -139,7 +144,8 @@ class BezierApp {
 
     if (!dropdownMenu || !currentNameSpan || !currentDot) return;
 
-    const curves = this.curveManager.getAllCurves();
+    const allCurves = this.curveManager.getAllCurves();
+    const curves = allCurves.filter(c => c.points.length > 0);
     const activeCurve = this.curveManager.getActiveCurve();
 
     const colorCounts = new Map<string, number>();
@@ -193,12 +199,50 @@ class BezierApp {
         currentDot.style.backgroundColor = curve.color;
       }
     });
+
+    if (activeCurve && activeCurve.points.length === 0) {
+      currentNameSpan.textContent = 'No active curve';
+      currentDot.style.backgroundColor = '#555';
+    }
   }
 
   private syncCurveWithInteraction() {
     const points = this.interaction.getPoints();
     this.curveManager.setActiveCurvePoints(points);
     this.updateCurveSelector();
+    this.saveHistory();
+  }
+
+  private saveHistory() {
+    const curves = this.curveManager.getAllCurves();
+    const activeCurve = this.curveManager.getActiveCurve();
+    this.history.saveState(curves, activeCurve?.id || null);
+  }
+
+  private undo() {
+    const state = this.history.undo();
+    if (state) {
+      this.curveManager.fromJSON({ curves: state.curves });
+      if (state.activeCurveId) {
+        this.curveManager.setActiveCurve(state.activeCurveId);
+      }
+      this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
+      this.updateCurveSelector();
+      this.render();
+    }
+  }
+
+  private redo() {
+    const state = this.history.redo();
+    if (state) {
+      this.curveManager.fromJSON({ curves: state.curves });
+      if (state.activeCurveId) {
+        this.curveManager.setActiveCurve(state.activeCurveId);
+      }
+      this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
+      this.updateCurveSelector();
+      this.render();
+    }
   }
 
   private setupControls() {
@@ -221,12 +265,12 @@ class BezierApp {
     const exportBtn = document.getElementById('export');
 
     undoBtn?.addEventListener('click', () => {
-      this.interaction.undo();
+      this.undo();
       this.updateButtonStates();
     });
 
     redoBtn?.addEventListener('click', () => {
-      this.interaction.redo();
+      this.redo();
       this.updateButtonStates();
     });
 
@@ -235,13 +279,17 @@ class BezierApp {
       this.interaction.setPoints([]);
       this.animation.stop();
       this.updateCurveSelector();
+      this.history.clear();
+      this.saveHistory();
       this.updateButtonStates();
+      this.render();
     });
 
     newCurveBtn?.addEventListener('click', () => {
       this.curveManager.addCurve();
       this.interaction.setPoints([]);
       this.updateCurveSelector();
+      this.saveHistory();
       this.render();
     });
 
@@ -251,6 +299,7 @@ class BezierApp {
         this.curveManager.removeCurve(activeCurve.id);
         this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
         this.updateCurveSelector();
+        this.saveHistory();
         this.render();
       }
     });
@@ -330,11 +379,11 @@ class BezierApp {
     window.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
         e.preventDefault();
-        this.interaction.undo();
+        this.undo();
         this.updateButtonStates();
       } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
         e.preventDefault();
-        this.interaction.redo();
+        this.redo();
         this.updateButtonStates();
       } else if (e.key === 'Escape') {
         e.preventDefault();
@@ -360,10 +409,10 @@ class BezierApp {
     const redoBtn = document.getElementById('redo') as HTMLButtonElement;
 
     if (undoBtn) {
-      undoBtn.disabled = !this.interaction.canUndo();
+      undoBtn.disabled = !this.history.canUndo();
     }
     if (redoBtn) {
-      redoBtn.disabled = !this.interaction.canRedo();
+      redoBtn.disabled = !this.history.canRedo();
     }
   }
 
@@ -375,7 +424,8 @@ class BezierApp {
   }
 
   private render() {
-    const curves = this.curveManager.getAllCurves();
+    const allCurves = this.curveManager.getAllCurves();
+    const curves = allCurves.filter(c => c.points.length > 0);
     const activeCurve = this.curveManager.getActiveCurve();
 
     let animatedPoints: Map<string, Point>;
@@ -471,6 +521,7 @@ class BezierApp {
 
         this.interaction.setPoints(this.curveManager.getActiveCurvePoints());
         this.updateCurveSelector();
+        this.saveHistory();
         this.render();
       } catch (error) {
         if (error instanceof SyntaxError) {

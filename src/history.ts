@@ -1,13 +1,21 @@
-import { Point } from './types';
+import { BezierCurve } from './types';
+
+interface AppState {
+  curves: BezierCurve[];
+  activeCurveId: string | null;
+}
 
 export class HistoryManager {
-  private history: Point[][] = [[]];
-  private currentIndex = 0;
+  private history: AppState[] = [];
+  private currentIndex = -1;
   private maxHistory = 50;
 
-  saveState(points: Point[]) {
+  saveState(curves: BezierCurve[], activeCurveId: string | null) {
     this.history = this.history.slice(0, this.currentIndex + 1);
-    this.history.push(JSON.parse(JSON.stringify(points)));
+    this.history.push({
+      curves: JSON.parse(JSON.stringify(curves)),
+      activeCurveId,
+    });
 
     if (this.history.length > this.maxHistory) {
       this.history.shift();
@@ -16,7 +24,7 @@ export class HistoryManager {
     }
   }
 
-  undo(): Point[] | null {
+  undo(): AppState | null {
     if (this.currentIndex > 0) {
       this.currentIndex--;
       return JSON.parse(JSON.stringify(this.history[this.currentIndex]));
@@ -24,7 +32,7 @@ export class HistoryManager {
     return null;
   }
 
-  redo(): Point[] | null {
+  redo(): AppState | null {
     if (this.currentIndex < this.history.length - 1) {
       this.currentIndex++;
       return JSON.parse(JSON.stringify(this.history[this.currentIndex]));
@@ -41,7 +49,7 @@ export class HistoryManager {
   }
 
   clear() {
-    this.history = [[]];
-    this.currentIndex = 0;
+    this.history = [];
+    this.currentIndex = -1;
   }
 }
