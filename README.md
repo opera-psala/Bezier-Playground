@@ -4,7 +4,7 @@ An interactive web application for creating, editing, and visualizing Bezier cur
 
 ## Live Demo
 
-🚀 [View on Vercel](#) *(Deploy and update this link)*
+🚀 [View on Vercel](#) *(https://bezier-playground-65wdoncrq-philip-salas-projects.vercel.app)*
 
 ## Features
 
