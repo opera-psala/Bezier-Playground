@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bezier Curve Playground</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #1a1a1a;
+        color: #fff;
+        overflow: hidden;
+      }
+      #app {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      #top-bar {
+        padding: 0.75rem 1rem;
+        background: #2a2a2a;
+        border-bottom: 1px solid #444;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        justify-content: space-between;
+      }
+      #left-controls,
+      #center-controls,
+      #right-controls {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+      }
+      #canvas {
+        flex: 1;
+        cursor: crosshair;
+        position: relative;
+      }
+      #drop-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(74, 158, 255, 0.1);
+        border: 3px dashed #4a9eff;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 999;
+      }
+      #drop-overlay.active {
+        display: flex;
+      }
+      #drop-overlay-text {
+        font-size: 24px;
+        color: #4a9eff;
+        font-weight: bold;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      }
+      button {
+        padding: 0.5rem 1rem;
+        background: #4a9eff;
+        border: none;
+        border-radius: 4px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      button:hover {
+        background: #3a8eef;
+      }
+      button:disabled {
+        background: #555;
+        cursor: not-allowed;
+      }
+      button.active {
+        background: #2a7edf;
+      }
+      .slider-control {
+        min-width: 160px;
+      }
+      .speed-control {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .speed-control label {
+        font-size: 14px;
+        color: #aaa;
+      }
+      .speed-control input[type='range'] {
+        width: 120px;
+      }
+      .visualization-control {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .visualization-control label {
+        font-size: 14px;
+        color: #aaa;
+      }
+      .visualization-control select {
+        padding: 0.4rem 0.8rem;
+        background: #1a1a1a;
+        border: 1px solid #444;
+        border-radius: 4px;
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+        min-width: auto;
+        width: auto;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+      }
+      .visualization-control select:focus {
+        outline: none;
+        border-color: #4a9eff;
+      }
+      .t-slider-control {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .t-slider-control label {
+        font-size: 14px;
+        color: #aaa;
+      }
+      .t-slider-control input[type='range'] {
+        width: 120px;
+      }
+      .t-slider-control span {
+        font-size: 12px;
+        color: #aaa;
+        min-width: 35px;
+      }
+      .curve-selector {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        position: relative;
+      }
+      .curve-selector label {
+        font-size: 14px;
+        color: #aaa;
+      }
+      .curve-dropdown-button {
+        padding: 0.4rem 0.8rem;
+        background: #1a1a1a;
+        border: 1px solid #444;
+        border-radius: 4px;
+        color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+        min-width: 200px;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .curve-dropdown-button:hover {
+        border-color: #4a9eff;
+      }
+      .curve-dropdown-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 70px;
+        background: #2a2a2a;
+        border: 1px solid #444;
+        border-radius: 4px;
+        margin-top: 0.25rem;
+        min-width: 200px;
+        max-height: 300px;
+        overflow-y: auto;
+        box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+      }
+      .curve-dropdown-menu.open {
+        display: block;
+      }
+      .curve-dropdown-item {
+        padding: 0.5rem 0.8rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #fff;
+        border-bottom: 1px solid #333;
+      }
+      .curve-dropdown-item:last-child {
+        border-bottom: none;
+      }
+      .curve-dropdown-item:hover {
+        background: #3a3a3a;
+      }
+      .curve-dropdown-item.active {
+        background: #3a3a3a;
+      }
+      .curve-color-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .dropdown {
+        position: relative;
+      }
+      .dropdown-button {
+        padding: 0.5rem 1rem;
+        background: #4a9eff;
+        border: none;
+        border-radius: 4px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .dropdown-button:hover {
+        background: #3a8eef;
+      }
+      .dropdown-content {
+        display: none;
+        position: absolute;
+        right: 0;
+        background: #2a2a2a;
+        min-width: 160px;
+        box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.5);
+        border: 1px solid #444;
+        border-radius: 4px;
+        z-index: 1000;
+      }
+      .dropdown-content button {
+        width: 100%;
+        text-align: left;
+        background: transparent;
+        border-radius: 0;
+        border-bottom: 1px solid #333;
+      }
+      .dropdown-content button:last-child {
+        border-bottom: none;
+      }
+      .dropdown-content button:hover {
+        background: #3a3a3a;
+      }
+      .dropdown.open .dropdown-content {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="drop-overlay">
+        <div id="drop-overlay-text">Drop JSON file to load curves</div>
+      </div>
+      <div id="top-bar">
+        <div id="left-controls">
+          <button id="undo">Undo</button>
+          <button id="redo">Redo</button>
+        </div>
+        <div id="center-controls">
+          <div class="curve-selector">
+            <label>Curve:</label>
+            <button class="curve-dropdown-button" id="curve-dropdown-button">
+              <span class="curve-color-dot"></span>
+              <span id="curve-current-name">Blue (0 points)</span>
+            </button>
+            <div class="curve-dropdown-menu" id="curve-dropdown-menu"></div>
+          </div>
+          <button id="new-curve">New Curve</button>
+          <button id="delete-curve">Delete Curve</button>
+          <button id="clear">Clear All</button>
+          <button id="animate">Animate</button>
+          <div class="slider-control">
+            <div class="speed-control" id="speed-container">
+              <label for="speed">Speed:</label>
+              <input
+                type="range"
+                id="speed"
+                min="1"
+                max="20"
+                value="5"
+                step="1"
+              />
+            </div>
+            <div class="t-slider-control" id="t-slider-container" style="display: none;">
+              <label for="t-slider">t:</label>
+              <input
+                type="range"
+                id="t-slider"
+                min="0"
+                max="100"
+                value="0"
+                step="1"
+              />
+              <span id="t-value">0.00</span>
+            </div>
+          </div>
+          <div class="visualization-control">
+            <label for="visualization-mode">Mode:</label>
+            <select id="visualization-mode">
+              <option value="default">Default</option>
+              <option value="decasteljau">De Casteljau</option>
+              <option value="tslider">t-Slider</option>
+            </select>
+          </div>
+        </div>
+        <div id="right-controls">
+          <div class="dropdown" id="file-dropdown">
+            <button class="dropdown-button">File ▼</button>
+            <div class="dropdown-content">
+              <button id="save">Save JSON</button>
+              <button id="load">Load JSON</button>
+              <button id="export">Export SVG</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <canvas id="canvas"></canvas>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
