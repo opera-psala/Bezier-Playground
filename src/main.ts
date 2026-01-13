@@ -140,6 +140,13 @@ class BezierApp {
             connected ? 'success' : 'error'
           );
         },
+        onHistoryChange: history => {
+          console.log('[Main] Shared history changed, reconstructing state from history');
+          // TODO: Implement state reconstruction from shared history
+          // For now, just log it
+          console.log('[Main] Current node:', history.currentNodeId);
+          console.log('[Main] Total nodes:', Object.keys(history.nodes).length);
+        },
       }
     );
 

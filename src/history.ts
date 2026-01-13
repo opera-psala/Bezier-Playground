@@ -4,6 +4,7 @@ export interface Command {
   execute(state: AppState): void;
   undo(state: AppState): void;
   getAffectedCurveId(): string | null;
+  serialize(): any; // Serialize command data for collaboration
 }
 
 export interface AppState {
@@ -33,6 +34,10 @@ class AddPointCommand implements Command {
   getAffectedCurveId(): string | null {
     return this.curveId;
   }
+
+  serialize(): any {
+    return { curveId: this.curveId, point: this.point };
+  }
 }
 
 class RemovePointCommand implements Command {
@@ -58,6 +63,10 @@ class RemovePointCommand implements Command {
 
   getAffectedCurveId(): string | null {
     return this.curveId;
+  }
+
+  serialize(): any {
+    return { curveId: this.curveId, index: this.index, point: this.point };
   }
 }
 
@@ -86,6 +95,15 @@ class MovePointCommand implements Command {
   getAffectedCurveId(): string | null {
     return this.curveId;
   }
+
+  serialize(): any {
+    return {
+      curveId: this.curveId,
+      index: this.index,
+      oldPoint: this.oldPoint,
+      newPoint: this.newPoint,
+    };
+  }
 }
 
 class AddCurveCommand implements Command {
@@ -109,6 +127,10 @@ class AddCurveCommand implements Command {
   getAffectedCurveId(): string | null {
     return this.curve.id;
   }
+
+  serialize(): any {
+    return { curve: this.curve };
+  }
 }
 
 class RemoveCurveCommand implements Command {
@@ -130,6 +152,10 @@ class RemoveCurveCommand implements Command {
 
   getAffectedCurveId(): string | null {
     return this.curveData.id;
+  }
+
+  serialize(): any {
+    return { curve: this.curveData, index: this.curveIndex };
   }
 }
 
@@ -157,6 +183,10 @@ class LoadCurvesCommand implements Command {
 
   getAffectedCurveId(): string | null {
     return this.newCurves[0]?.id || null;
+  }
+
+  serialize(): any {
+    return { newCurves: this.newCurves, oldCurves: this.oldCurves };
   }
 }
 
@@ -192,6 +222,10 @@ export class RemoteStateUpdateCommand implements Command {
 
   getAffectedCurveId(): string | null {
     return this.newCurves[0]?.id || null;
+  }
+
+  serialize(): any {
+    return { newCurves: this.newCurves };
   }
 }
 

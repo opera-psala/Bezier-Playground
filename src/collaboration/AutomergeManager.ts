@@ -1,9 +1,11 @@
 import * as Automerge from '@automerge/automerge';
-import { BezierCurve, CollaborativeState, User } from '../types';
+import { BezierCurve, CollaborativeState, User, CollaborativeHistory } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface AutomergeCallbacks {
   onRemoteChange: (curves: BezierCurve[]) => void;
   onPresenceUpdate: (users: User[]) => void;
+  onHistoryChange?: (history: CollaborativeHistory) => void;
 }
 
 export class AutomergeManager {
@@ -15,10 +17,29 @@ export class AutomergeManager {
     this.localUserId = localUserId;
     this.callbacks = callbacks;
 
-    // Initialize Automerge document
+    // Create initial history tree with root node
+    const rootId = uuidv4();
+    const initialHistory: CollaborativeHistory = {
+      nodes: {
+        [rootId]: {
+          id: rootId,
+          command: null,
+          parentId: null,
+          childIds: [],
+          timestamp: Date.now(),
+          description: 'Initial state',
+          userId: localUserId,
+        },
+      },
+      rootId: rootId,
+      currentNodeId: rootId,
+    };
+
+    // Initialize Automerge document with history
     this.doc = Automerge.from({
       curves: initialCurves,
       users: {},
+      history: initialHistory,
     });
   }
 
@@ -58,6 +79,10 @@ export class AutomergeManager {
       const oldCurves = JSON.stringify(this.doc.curves || []);
       const newCurves = JSON.stringify(newDoc.curves || []);
 
+      // Check if history changed
+      const oldHistory = JSON.stringify(this.doc.history || {});
+      const newHistory = JSON.stringify(newDoc.history || {});
+
       console.log('[Automerge] After: curves =', newDoc.curves?.length || 0);
       console.log('[Automerge] Old curves JSON:', oldCurves.substring(0, 100));
       console.log('[Automerge] New curves JSON:', newCurves.substring(0, 100));
@@ -65,11 +90,21 @@ export class AutomergeManager {
       this.doc = newDoc;
 
       console.log('[Automerge] Curves changed:', oldCurves !== newCurves);
+      console.log('[Automerge] History changed:', oldHistory !== newHistory);
 
       if (oldCurves !== newCurves) {
         const curves = this.doc.curves ? JSON.parse(JSON.stringify(this.doc.curves)) : [];
         console.log('[Automerge] Triggering onRemoteChange callback with', curves.length, 'curves');
         this.callbacks.onRemoteChange(curves);
+      }
+
+      // Notify if history changed
+      if (oldHistory !== newHistory && this.callbacks.onHistoryChange) {
+        const history = this.doc.history ? JSON.parse(JSON.stringify(this.doc.history)) : null;
+        if (history) {
+          console.log('[Automerge] Triggering onHistoryChange callback');
+          this.callbacks.onHistoryChange(history);
+        }
       }
 
       // Always update presence - convert to plain objects

@@ -63,9 +63,29 @@ wss.on('connection', ws => {
           // If no document exists, create the initial one NOW so all clients share the same lineage
           if (currentSession.doc === null) {
             console.log('Creating initial Automerge document on server');
+
+            // Create initial history tree
+            const rootId = require('uuid').v4();
+            const initialHistory = {
+              nodes: {
+                [rootId]: {
+                  id: rootId,
+                  command: null,
+                  parentId: null,
+                  childIds: [],
+                  timestamp: Date.now(),
+                  description: 'Initial state',
+                  userId: 'server'
+                }
+              },
+              rootId: rootId,
+              currentNodeId: rootId
+            };
+
             currentSession.doc = Automerge.from({
               curves: [],
-              users: {}
+              users: {},
+              history: initialHistory
             });
           }
 

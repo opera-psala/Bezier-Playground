@@ -1,18 +1,21 @@
 import { v4 as uuidv4 } from 'uuid';
 import { AutomergeManager } from './AutomergeManager';
 import { WebSocketClient } from './WebSocketClient';
-import { BezierCurve, Point, User } from '../types';
+import { SharedHistoryManager } from './SharedHistoryManager';
+import { BezierCurve, Point, User, CollaborativeHistory } from '../types';
 import { Command } from '../history';
 
 export interface CollaborationCallbacks {
   onRemoteChange: (curves: BezierCurve[]) => void;
   onUsersUpdate: (users: User[]) => void;
   onConnectionStatusChange: (connected: boolean) => void;
+  onHistoryChange: (history: CollaborativeHistory) => void;
 }
 
 export class CollaborationManager {
   private automerge: AutomergeManager;
   private websocket: WebSocketClient;
+  private sharedHistory: SharedHistoryManager;
   private userId: string;
   private userName: string = 'Anonymous';
   private enabled: boolean = false;
@@ -23,6 +26,9 @@ export class CollaborationManager {
   constructor(serverUrl: string, _initialCurves: BezierCurve[], callbacks: CollaborationCallbacks) {
     this.userId = uuidv4();
     this.callbacks = callbacks;
+
+    // Initialize SharedHistoryManager
+    this.sharedHistory = new SharedHistoryManager(this.userId);
 
     // Initialize Automerge with EMPTY state - will sync from server or first user
     // This ensures all clients start from the same baseline
@@ -46,6 +52,14 @@ export class CollaborationManager {
           'users'
         );
         this.callbacks.onUsersUpdate(users);
+      },
+      onHistoryChange: history => {
+        if (!this.isApplyingRemoteChange) {
+          console.log('[Collaboration] History changed remotely');
+          this.isApplyingRemoteChange = true;
+          this.callbacks.onHistoryChange(history);
+          this.isApplyingRemoteChange = false;
+        }
       },
     });
 
@@ -176,10 +190,11 @@ export class CollaborationManager {
     );
 
     try {
-      // Sync changes intelligently - only update what changed
+      // Sync changes - update both curves AND history
       const changes = this.automerge.executeLocalCommand(
         this.getCommandDescription(command),
         doc => {
+          // 1. Update curves (existing logic)
           const localCurves = state.curves;
           const currentCurves = doc.curves;
 
@@ -232,6 +247,36 @@ export class CollaborationManager {
               }
             }
           });
+
+          // 2. Update shared history tree (if history exists)
+          if (doc.history && doc.history.currentNodeId) {
+            try {
+              const historyNode = this.sharedHistory.createHistoryNode(
+                command,
+                doc.history.currentNodeId,
+                this.getCommandDescription(command)
+              );
+
+              // Add new node to history
+              doc.history.nodes[historyNode.id] = JSON.parse(JSON.stringify(historyNode));
+
+              // Link node to parent
+              const parentNode = doc.history.nodes[doc.history.currentNodeId];
+              if (parentNode && !parentNode.childIds.includes(historyNode.id)) {
+                parentNode.childIds.push(historyNode.id);
+              }
+
+              // Update current position
+              doc.history.currentNodeId = historyNode.id;
+
+              console.log('[Collaboration] Added history node:', historyNode.id);
+            } catch (error) {
+              console.error('[Collaboration] Error updating history:', error);
+              // Continue anyway - curve sync should still work
+            }
+          } else {
+            console.log('[Collaboration] History not initialized yet, skipping history sync');
+          }
         }
       );
 
@@ -262,6 +307,150 @@ export class CollaborationManager {
     } catch (error) {
       console.error('Error updating presence:', error);
     }
+  }
+
+  // Shared undo - moves history back and reconstructs state
+  undo(): boolean {
+    if (!this.enabled || !this.websocket.isConnected()) return false;
+
+    try {
+      console.log('[Collaboration] Shared undo requested');
+
+      const state = this.automerge.getState();
+      if (!state.history) {
+        console.warn('[Collaboration] History not available');
+        return false;
+      }
+
+      const currentNode = state.history.nodes[state.history.currentNodeId];
+      if (!currentNode || !currentNode.parentId) {
+        console.log('[Collaboration] Cannot undo - at root');
+        return false;
+      }
+
+      // Move to parent node
+      const newCurrentId = currentNode.parentId;
+      console.log('[Collaboration] Moving to parent node:', newCurrentId);
+
+      // Update history position and reconstruct state
+      const changes = this.automerge.executeLocalCommand('Shared undo', doc => {
+        doc.history.currentNodeId = newCurrentId;
+
+        // Reconstruct curves from history
+        const reconstructedCurves = this.sharedHistory.reconstructState(
+          state.history,
+          newCurrentId,
+          []
+        );
+
+        // Update curves using splice (Automerge-compatible)
+        const curvesCopy = JSON.parse(JSON.stringify(reconstructedCurves));
+        doc.curves.splice(0, doc.curves.length, ...curvesCopy);
+        console.log(
+          '[Collaboration] Reconstructed',
+          reconstructedCurves.length,
+          'curves after undo'
+        );
+      });
+
+      // Broadcast changes
+      if (changes && this.websocket.isConnected()) {
+        this.websocket.sendChange(changes);
+      }
+
+      // Trigger local callback to update our own UI
+      const updatedState = this.automerge.getState();
+      console.log('[Collaboration] Triggering local onRemoteChange after undo');
+      this.callbacks.onRemoteChange(updatedState.curves);
+
+      return true;
+    } catch (error) {
+      console.error('Error in shared undo:', error);
+      return false;
+    }
+  }
+
+  // Shared redo - moves history forward and reconstructs state
+  redo(): boolean {
+    if (!this.enabled || !this.websocket.isConnected()) return false;
+
+    try {
+      console.log('[Collaboration] Shared redo requested');
+
+      const state = this.automerge.getState();
+      if (!state.history) {
+        console.warn('[Collaboration] History not available');
+        return false;
+      }
+
+      const currentNode = state.history.nodes[state.history.currentNodeId];
+      if (!currentNode || currentNode.childIds.length === 0) {
+        console.log('[Collaboration] Cannot redo - no children');
+        return false;
+      }
+
+      // Move to first child (TODO: handle multiple branches)
+      const newCurrentId = currentNode.childIds[0];
+      console.log('[Collaboration] Moving to child node:', newCurrentId);
+
+      // Update history position and reconstruct state
+      const changes = this.automerge.executeLocalCommand('Shared redo', doc => {
+        doc.history.currentNodeId = newCurrentId;
+
+        // Reconstruct curves from history
+        const reconstructedCurves = this.sharedHistory.reconstructState(
+          state.history,
+          newCurrentId,
+          []
+        );
+
+        // Update curves using splice (Automerge-compatible)
+        const curvesCopy = JSON.parse(JSON.stringify(reconstructedCurves));
+        doc.curves.splice(0, doc.curves.length, ...curvesCopy);
+        console.log(
+          '[Collaboration] Reconstructed',
+          reconstructedCurves.length,
+          'curves after redo'
+        );
+      });
+
+      // Broadcast changes
+      if (changes && this.websocket.isConnected()) {
+        this.websocket.sendChange(changes);
+      }
+
+      // Trigger local callback to update our own UI
+      const updatedState = this.automerge.getState();
+      console.log('[Collaboration] Triggering local onRemoteChange after redo');
+      this.callbacks.onRemoteChange(updatedState.curves);
+
+      return true;
+    } catch (error) {
+      console.error('Error in shared redo:', error);
+      return false;
+    }
+  }
+
+  // Check if undo is available
+  canUndo(): boolean {
+    if (!this.enabled) return false;
+
+    const state = this.automerge.getState();
+    if (!state.history) return false;
+
+    const currentNode = state.history.nodes[state.history.currentNodeId];
+    return currentNode && currentNode.parentId !== null;
+  }
+
+  // Check if redo is available
+  canRedo(): boolean {
+    if (!this.enabled) return false;
+
+    const state = this.automerge.getState();
+    if (!state.history) return false;
+
+    const currentNode = state.history.nodes[state.history.currentNodeId];
+    return currentNode && currentNode.childIds.length > 0;
   }
 
   isEnabled(): boolean {

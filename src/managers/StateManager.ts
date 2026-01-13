@@ -106,24 +106,56 @@ export class StateManager {
   }
 
   undo(): void {
+    // Use shared undo if collaboration is enabled
     if (this.collaborationManager?.isEnabled() && this.collaborationManager?.isConnected()) {
-      console.warn('Undo disabled during collaboration');
+      console.log('[StateManager] Using shared undo');
+      const success = this.collaborationManager.undo();
+      if (!success) {
+        console.warn('[StateManager] Shared undo failed or not available');
+      }
+      // Note: state will be updated via onRemoteChange callback
       return;
     }
 
+    // Local undo
     const affectedCurveId = this.history.undo();
     this.syncStateFromHistory(affectedCurveId);
     this.callbacks.onRender();
   }
 
   redo(): void {
+    // Use shared redo if collaboration is enabled
     if (this.collaborationManager?.isEnabled() && this.collaborationManager?.isConnected()) {
-      console.warn('Redo disabled during collaboration');
+      console.log('[StateManager] Using shared redo');
+      const success = this.collaborationManager.redo();
+      if (!success) {
+        console.warn('[StateManager] Shared redo failed or not available');
+      }
+      // Note: state will be updated via onRemoteChange callback
       return;
     }
 
+    // Local redo
     const affectedCurveId = this.history.redo();
     this.syncStateFromHistory(affectedCurveId);
     this.callbacks.onRender();
+  }
+
+  canUndo(): boolean {
+    // Check collaboration manager first
+    if (this.collaborationManager?.isEnabled() && this.collaborationManager?.isConnected()) {
+      return this.collaborationManager.canUndo();
+    }
+    // Fall back to local history
+    return this.history.canUndo();
+  }
+
+  canRedo(): boolean {
+    // Check collaboration manager first
+    if (this.collaborationManager?.isEnabled() && this.collaborationManager?.isConnected()) {
+      return this.collaborationManager.canRedo();
+    }
+    // Fall back to local history
+    return this.history.canRedo();
   }
 }

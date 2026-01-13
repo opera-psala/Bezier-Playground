@@ -34,10 +34,10 @@ export class UIControlManager {
     const historyDropdown = document.getElementById('history-dropdown');
 
     if (undoBtn) {
-      undoBtn.disabled = !this.history.canUndo();
+      undoBtn.disabled = !this.stateManager.canUndo();
     }
     if (redoBtn) {
-      redoBtn.disabled = !this.history.canRedo();
+      redoBtn.disabled = !this.stateManager.canRedo();
     }
     if (historyDropdown) {
       const hasBranches = this.history.getBranches().length > 0;

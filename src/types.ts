@@ -27,9 +27,34 @@ export interface User {
   lastSeen: number;
 }
 
+// Serializable command format for shared history
+export interface SerializedCommand {
+  type: 'AddPoint' | 'RemovePoint' | 'MovePoint' | 'AddCurve' | 'RemoveCurve' | 'ChangeCurveColor';
+  data: any; // Command-specific data (curveId, point, index, etc.)
+}
+
+// Shared history node (serializable for Automerge)
+export interface SharedHistoryNode {
+  id: string;
+  command: SerializedCommand | null; // null for root
+  parentId: string | null;
+  childIds: string[];
+  timestamp: number;
+  description: string;
+  userId: string; // Who created this node
+}
+
+// Collaborative history tree
+export interface CollaborativeHistory {
+  nodes: { [id: string]: SharedHistoryNode };
+  rootId: string;
+  currentNodeId: string;
+}
+
 export interface CollaborativeState {
   curves: BezierCurve[];
   users: { [userId: string]: User };
+  history: CollaborativeHistory;
 }
 
 export interface PresenceUpdate {
