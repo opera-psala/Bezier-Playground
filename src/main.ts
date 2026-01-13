@@ -62,14 +62,19 @@ class BezierApp {
     });
 
     // Initialize FileManager
-    this.fileManager = new FileManager(this.curveManager, this.interaction, this.canvas, {
-      onCurvesLoaded: () => {
-        this.history.clear();
-        this.stateManager.syncStateFromHistory(null);
-      },
-      onRender: () => this.render(),
-      onUpdateCurveSelector: () => this.dropdownManager.updateCurveSelector(),
-    });
+    this.fileManager = new FileManager(
+      this.curveManager,
+      this.interaction,
+      this.canvas,
+      this.history,
+      {
+        onCurvesLoaded: () => {
+          this.stateManager.syncStateFromHistory(null);
+        },
+        onRender: () => this.render(),
+        onUpdateCurveSelector: () => this.dropdownManager.updateCurveSelector(),
+      }
+    );
 
     // Initialize DropdownManager (uses StateManager)
     this.dropdownManager = new DropdownManager(this.curveManager, this.history, this.stateManager, {

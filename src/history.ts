@@ -133,6 +133,33 @@ class RemoveCurveCommand implements Command {
   }
 }
 
+class LoadCurvesCommand implements Command {
+  private oldCurves: BezierCurve[];
+
+  constructor(
+    private newCurves: BezierCurve[],
+    oldCurves: BezierCurve[]
+  ) {
+    this.oldCurves = JSON.parse(JSON.stringify(oldCurves));
+  }
+
+  execute(state: AppState): void {
+    // Clear existing curves and add new ones (preserve array reference)
+    state.curves.length = 0;
+    state.curves.push(...JSON.parse(JSON.stringify(this.newCurves)));
+  }
+
+  undo(state: AppState): void {
+    // Clear curves and restore old ones (preserve array reference)
+    state.curves.length = 0;
+    state.curves.push(...JSON.parse(JSON.stringify(this.oldCurves)));
+  }
+
+  getAffectedCurveId(): string | null {
+    return this.newCurves[0]?.id || null;
+  }
+}
+
 interface HistoryNode {
   command: Command | null;
   parent: HistoryNode | null;
@@ -208,6 +235,8 @@ export class HistoryManager {
       // For RemoveCurveCommand, get color from the stored curve data
       const colorName = this.getColorName(command['curveData'].color);
       return `Delete ${colorName} curve`;
+    } else if (command instanceof LoadCurvesCommand) {
+      return 'Load curves from file';
     }
     return 'Unknown action';
   }
@@ -519,5 +548,6 @@ export {
   MovePointCommand,
   AddCurveCommand,
   RemoveCurveCommand,
+  LoadCurvesCommand,
 };
 export type { BranchInfo };

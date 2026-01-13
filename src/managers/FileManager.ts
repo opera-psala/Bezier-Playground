@@ -2,6 +2,8 @@ import { CurveManager } from './CurveManager';
 import { InteractionManager } from '../interaction';
 import { exportToSVG } from '../bezier';
 import { validatePointsArray, validateCurvesData } from '../fileUtils';
+import { HistoryManager, LoadCurvesCommand } from '../history';
+import { BezierCurve } from '../types';
 
 export interface FileManagerCallbacks {
   onCurvesLoaded: () => void;
@@ -14,6 +16,7 @@ export class FileManager {
     private curveManager: CurveManager,
     private interaction: InteractionManager,
     private canvas: HTMLCanvasElement,
+    private history: HistoryManager,
     private callbacks: FileManagerCallbacks
   ) {
     this.setupDragAndDrop();
@@ -99,22 +102,40 @@ export class FileManager {
         const json = event.target?.result as string;
         const data = JSON.parse(json);
 
+        let newCurves: BezierCurve[];
+
         if (data.curves) {
           if (!validateCurvesData(data.curves)) {
             alert('Improperly structured JSON file: Invalid curves data');
             return;
           }
-          this.curveManager.fromJSON(data);
+          newCurves = data.curves;
         } else if (data.points) {
           if (!validatePointsArray(data.points)) {
             alert('Improperly structured JSON file: Invalid points data');
             return;
           }
-          this.curveManager.clearAllCurves();
-          this.curveManager.setActiveCurvePoints(data.points);
+          // Convert legacy format to new format
+          newCurves = [
+            {
+              id: `curve-${Date.now()}`,
+              color: '#4a9eff',
+              points: data.points,
+            },
+          ];
         } else {
           alert('Improperly structured JSON file: Missing curves or points');
           return;
+        }
+
+        // Save current state and execute load command through history
+        const oldCurves = this.curveManager.getAllCurves();
+        const command = new LoadCurvesCommand(newCurves, oldCurves);
+        this.history.executeCommand(command);
+
+        // Update active curve to first curve in loaded data
+        if (newCurves.length > 0) {
+          this.curveManager.setActiveCurve(newCurves[0].id);
         }
 
         this.callbacks.onCurvesLoaded();

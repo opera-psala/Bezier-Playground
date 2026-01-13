@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { FileManager } from '../../src/managers/FileManager';
 import { CurveManager } from '../../src/managers/CurveManager';
 import { InteractionManager } from '../../src/interaction';
+import { HistoryManager, LoadCurvesCommand } from '../../src/history';
 
 const createMockCanvas = (): HTMLCanvasElement => {
   const canvas = document.createElement('canvas');
@@ -14,6 +15,7 @@ describe('FileManager', () => {
   let fileManager: FileManager;
   let curveManager: CurveManager;
   let interaction: InteractionManager;
+  let history: HistoryManager;
   let canvas: HTMLCanvasElement;
   let callbacks: {
     onCurvesLoaded: ReturnType<typeof vi.fn>;
@@ -28,6 +30,7 @@ describe('FileManager', () => {
     canvas = createMockCanvas();
     curveManager = new CurveManager();
     interaction = new InteractionManager(canvas, () => {});
+    history = new HistoryManager({ curves: curveManager.getAllCurves() });
     callbacks = {
       onCurvesLoaded: vi.fn(),
       onRender: vi.fn(),
@@ -54,7 +57,7 @@ describe('FileManager', () => {
       return element;
     });
 
-    fileManager = new FileManager(curveManager, interaction, canvas, callbacks);
+    fileManager = new FileManager(curveManager, interaction, canvas, history, callbacks);
   });
 
   afterEach(() => {
@@ -231,6 +234,71 @@ describe('FileManager', () => {
 
       expect(curveManager.getActiveCurvePoints()).toHaveLength(2);
     });
+
+    it('should create undoable history entry when loading JSON', async () => {
+      // Add some points to start with
+      curveManager.setActiveCurvePoints([
+        { x: 1, y: 1 },
+        { x: 2, y: 2 },
+      ]);
+      const initialCurves = curveManager.getAllCurves();
+
+      const validJSON = JSON.stringify({
+        curves: [
+          {
+            id: 'loaded-curve',
+            color: '#4a9eff',
+            points: [
+              { x: 100, y: 200 },
+              { x: 300, y: 400 },
+            ],
+          },
+        ],
+      });
+
+      const file = new File([validJSON], 'test.json', { type: 'application/json' });
+
+      // Simulate loading the file through FileManager's loadJSONFromFile
+      const reader = new FileReader();
+      const loadPromise = new Promise<void>(resolve => {
+        reader.onload = event => {
+          try {
+            const json = event.target?.result as string;
+            const data = JSON.parse(json);
+
+            // This mimics what FileManager does
+            const oldCurves = curveManager.getAllCurves();
+            const newCurves = data.curves;
+
+            // Create and execute LoadCurvesCommand through history
+            const command = new LoadCurvesCommand(newCurves, oldCurves);
+            history.executeCommand(command);
+
+            if (newCurves.length > 0) {
+              curveManager.setActiveCurve(newCurves[0].id);
+            }
+
+            resolve();
+          } catch (error) {
+            console.error(error);
+          }
+        };
+      });
+
+      reader.readAsText(file);
+      await loadPromise;
+
+      // Verify curves were loaded
+      expect(curveManager.getAllCurves()).toHaveLength(1);
+      expect(curveManager.getAllCurves()[0].id).toBe('loaded-curve');
+
+      // Verify we can undo the load
+      expect(history.canUndo()).toBe(true);
+      history.undo();
+
+      // After undo, should be back to initial state
+      expect(curveManager.getAllCurves()).toEqual(initialCurves);
+    });
   });
 
   describe('drag and drop', () => {
@@ -239,7 +307,7 @@ describe('FileManager', () => {
       const addEventListenerSpy = vi.spyOn(appContainer!, 'addEventListener');
 
       // Create new instance to trigger setup
-      new FileManager(curveManager, interaction, canvas, callbacks);
+      new FileManager(curveManager, interaction, canvas, history, callbacks);
 
       expect(addEventListenerSpy).toHaveBeenCalledWith('dragenter', expect.any(Function));
       expect(addEventListenerSpy).toHaveBeenCalledWith('dragleave', expect.any(Function));
@@ -252,7 +320,7 @@ describe('FileManager', () => {
 
       // Should not throw when elements are missing
       expect(() => {
-        new FileManager(curveManager, interaction, canvas, callbacks);
+        new FileManager(curveManager, interaction, canvas, history, callbacks);
       }).not.toThrow();
     });
 

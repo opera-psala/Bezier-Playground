@@ -4,13 +4,13 @@ An interactive web application for creating, editing, and visualizing Bezier cur
 
 ## Live Demo
 
-🚀 [View on Vercel](#) *(https://bezier-playground-65wdoncrq-philip-salas-projects.vercel.app)*
+🚀 [View on Vercel](https://bezier-playground-65wdoncrq-philip-salas-projects.vercel.app)
 
 ## Features
 
 - **Interactive Control Points**: Click to add, drag to move, right-click to delete control points
 - **Multiple Curves**: Create and manage multiple Bezier curves with different colors
-- **Undo/Redo**: Full history support with keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z)
+- **Undo/Redo**: Full tree-history support with keyboard shortcuts 
 - **Visualization Modes**:
   - **Default**: Standard Bezier curve rendering
   - **De Casteljau**: Visualize the recursive construction algorithm
@@ -30,35 +30,6 @@ An interactive web application for creating, editing, and visualizing Bezier cur
 - **ESLint + Prettier**: Code quality and formatting
 - **Vercel**: Deployment platform
 
-## Getting Started
-
-### Prerequisites
-
-- Node.js 16+ and npm
-
-### Installation
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd bezier
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-The application will be available at `http://localhost:5173/`
-
-### Build for Production
-
-```bash
-npm run build
-npm run preview
-```
-
 ## Usage
 
 ### Basic Controls
@@ -72,6 +43,9 @@ npm run preview
 
 - `Ctrl+Z` (or `Cmd+Z` on Mac): Undo
 - `Ctrl+Shift+Z` (or `Cmd+Shift+Z` on Mac): Redo
+- `Ctrl+Shift+→` (or `Cmd+Shift+→` on Mac): Redo until the next intersection or end of branch
+- `Ctrl+Shift+←` (or `Cmd+Shift+←` on Mac): Undo until the next intersection or end of branch
+- `Ctrl+Shift+↑/↓` (or `Cmd+Shift+↑/↓` on Mac): Switch history branch at an intersection
 - `Escape`: Clear animation artifacts and reset progress
 
 ### Multiple Curves
@@ -124,42 +98,19 @@ npm run preview
 }
 ```
 
-## Project Structure
+## How I used Claude Code
 
-```
-bezier/
-├── src/
-│   ├── animation.ts      # Animation loop and progress management
-│   ├── bezier.ts         # De Casteljau algorithm and curve evaluation
-│   ├── curveManager.ts   # Multiple curve state management
-│   ├── fileUtils.ts      # JSON validation utilities
-│   ├── history.ts        # Undo/redo history management
-│   ├── interaction.ts    # Mouse event handling
-│   ├── main.ts           # Application entry point and UI coordination
-│   ├── renderer.ts       # Canvas rendering logic
-│   └── types.ts          # TypeScript type definitions
-├── index.html            # HTML structure and styling
-├── package.json          # Dependencies and scripts
-├── tsconfig.json         # TypeScript configuration
-├── eslint.config.js      # ESLint configuration
-└── vercel.json           # Vercel deployment configuration
-```
+- **Plan before executing**: Asked Claude to analyze the codebase and create a refactoring plan before making changes, avoiding costly rewrites
+  - *"main.ts is too large, help me break it down" → received detailed dependency analysis and step-by-step plan*
 
-## Development
+- **Be explicit about constraints**: Mentioned file size limits, deployment concerns, and preferences upfront to get tailored solutions
+  - *"Chromium is too big" → pivoted from Playwright to lightweight Vitest + happy-dom*
 
-### Code Quality
+- **Iterate on solutions**: When tests failed, shared error messages and let Claude fix incrementally rather than rewriting from scratch
+  - Fixed animation timing issues, mathematical precision errors, and import paths through quick iterations
 
-This project enforces strict code quality standards:
+- **Verify assumptions**: Asked Claude to audit dependencies and build outputs to ensure no bloat
+  - *"Do we have unnecessary stuff in node_modules?" → confirmed all 93MB are dev-only dependencies*
 
-- **File Size Limit**: No file should exceed 500 lines of code
-- **Linting**: ESLint with TypeScript rules
-- **Formatting**: Prettier with automatic formatting
-- **Type Safety**: Strict TypeScript configuration
-
-### Hooks
-
-The project uses custom hooks (`.claude/hooks/`) for automated checks on file edits.
-
-## License
-
-MIT
+- **Let Claude organize**: When code or tests felt messy, asked for reorganization suggestions
+  - Moved all test files to dedicated `tests/` directory for cleaner structure
