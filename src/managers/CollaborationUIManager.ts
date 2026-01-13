@@ -41,7 +41,14 @@ export class CollaborationUIManager {
         }
 
         const displayName = userName.trim() || 'Anonymous';
-        const currentCurves = this.curveManager.getAllCurves();
+
+        // Ensure there's at least one curve before enabling collaboration
+        let currentCurves = this.curveManager.getAllCurves();
+        if (currentCurves.length === 0) {
+          this.curveManager.addCurve();
+          currentCurves = this.curveManager.getAllCurves();
+        }
+
         this.collaborationManager.enable(currentCurves, displayName);
         this.toggleButton.textContent = 'Disable Collaboration';
         this.onlineUsers.style.display = 'flex';

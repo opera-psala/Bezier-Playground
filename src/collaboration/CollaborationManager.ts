@@ -78,7 +78,10 @@ export class CollaborationManager {
           const docState = Array.isArray(documentState)
             ? new Uint8Array(documentState)
             : documentState;
-          this.automerge.load(docState);
+
+          // If we're the first user, skip callbacks during load to preserve our pending curves
+          const skipCallbacks = isFirstUser;
+          this.automerge.load(docState, skipCallbacks);
           console.log('[Collaboration] Successfully loaded server state');
 
           // If we're the first user and have local curves, sync them now

@@ -150,7 +150,7 @@ export class AutomergeManager {
   }
 
   // Load from full document
-  load(data: Uint8Array): void {
+  load(data: Uint8Array, skipCallbacks: boolean = false): void {
     try {
       console.log('[Automerge] Loading document, data size:', data.length, 'bytes');
       this.doc = Automerge.load(data);
@@ -166,8 +166,12 @@ export class AutomergeManager {
       }
       console.log('[Automerge] Loaded', users.length, 'users');
 
-      this.callbacks.onRemoteChange(curves);
-      this.callbacks.onPresenceUpdate(users);
+      if (!skipCallbacks) {
+        this.callbacks.onRemoteChange(curves);
+        this.callbacks.onPresenceUpdate(users);
+      } else {
+        console.log('[Automerge] Skipping callbacks during load');
+      }
     } catch (error) {
       console.error('Error loading document:', error);
     }
