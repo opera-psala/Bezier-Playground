@@ -65,13 +65,12 @@ An interactive web application for creating, editing, and visualizing Bezier cur
 ### File Operations
 
 - **Save JSON**: Download all curves as a JSON file
-- **Load JSON**: Import curves from a JSON file (supports both single curve and multiple curves format)
+- **Load JSON**: Import curves from a JSON file
 - **Export SVG**: Export the active curve as an SVG file
 - **Drag & Drop**: Drag a JSON file onto the canvas to load it
 
 ### JSON Format
 
-**Multiple curves:**
 ```json
 {
   "curves": [
@@ -85,16 +84,6 @@ An interactive web application for creating, editing, and visualizing Bezier cur
     }
   ],
   "activeCurveId": "unique-id"
-}
-```
-
-**Single curve (legacy):**
-```json
-{
-  "points": [
-    { "x": 100, "y": 200 },
-    { "x": 300, "y": 100 }
-  ]
 }
 ```
 

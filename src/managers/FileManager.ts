@@ -1,7 +1,7 @@
 import { CurveManager } from './CurveManager';
 import { InteractionManager } from '../interaction';
 import { exportToSVG } from '../bezier';
-import { validatePointsArray, validateCurvesData } from '../fileUtils';
+import { validateCurvesData } from '../fileUtils';
 import { HistoryManager, LoadCurvesCommand } from '../history';
 import { BezierCurve } from '../types';
 
@@ -102,31 +102,19 @@ export class FileManager {
         const json = event.target?.result as string;
         const data = JSON.parse(json);
 
-        let newCurves: BezierCurve[];
-
-        if (data.curves) {
-          if (!validateCurvesData(data.curves)) {
-            alert('Improperly structured JSON file: Invalid curves data');
-            return;
-          }
-          newCurves = data.curves;
-        } else if (data.points) {
-          if (!validatePointsArray(data.points)) {
-            alert('Improperly structured JSON file: Invalid points data');
-            return;
-          }
-          // Convert legacy format to new format
-          newCurves = [
-            {
-              id: `curve-${Date.now()}`,
-              color: '#4a9eff',
-              points: data.points,
-            },
-          ];
-        } else {
-          alert('Improperly structured JSON file: Missing curves or points');
+        if (!data.curves) {
+          alert(
+            'Invalid JSON format. Expected format:\n{\n  "curves": [...],\n  "activeCurveId": "..."\n}'
+          );
           return;
         }
+
+        if (!validateCurvesData(data.curves)) {
+          alert('Invalid curves data. Each curve must have: id, color, and points array.');
+          return;
+        }
+
+        const newCurves: BezierCurve[] = data.curves;
 
         // Save current state and execute load command through history
         const oldCurves = this.curveManager.getAllCurves();
