@@ -255,6 +255,41 @@
       .dropdown.open .dropdown-content {
         display: block;
       }
+      /* Collaboration UI */
+      #collaboration-controls {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      #online-users {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        background: #1a1a1a;
+        border-radius: 4px;
+        border: 1px solid #444;
+      }
+      #online-count {
+        font-size: 12px;
+        color: #aaa;
+      }
+      #user-list {
+        display: flex;
+        gap: 0.25rem;
+      }
+      .user-avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: bold;
+        color: white;
+      }
     </style>
   </head>
   <body>
@@ -319,6 +354,13 @@
           </div>
         </div>
         <div id="right-controls">
+          <div id="collaboration-controls">
+            <button id="toggle-collaboration">Enable Collaboration</button>
+            <div id="online-users" style="display: none;">
+              <span id="online-count">0 users online</span>
+              <div id="user-list"></div>
+            </div>
+          </div>
           <div class="dropdown" id="file-dropdown">
             <button class="dropdown-button">File ▼</button>
             <div class="dropdown-content">

@@ -2,7 +2,7 @@ import { Renderer } from './renderer';
 import { InteractionManager } from './interaction';
 import { AnimationManager } from './animation';
 import { HistoryManager } from './history';
-import { VisualizationMode, Point } from './types';
+import { VisualizationMode, Point, User } from './types';
 import { CurveManager } from './managers/CurveManager';
 
 import { FileManager } from './managers/FileManager';
@@ -10,6 +10,9 @@ import { NotificationManager } from './managers/NotificationManager';
 import { StateManager } from './managers/StateManager';
 import { DropdownManager } from './managers/DropdownManager';
 import { UIControlManager } from './managers/UIControlManager';
+import { CollaborationManager } from './collaboration/CollaborationManager';
+import { PresenceRenderer } from './collaboration/PresenceRenderer';
+import { CollaborationUIManager } from './managers/CollaborationUIManager';
 
 class BezierApp {
   // Core managers
@@ -26,6 +29,12 @@ class BezierApp {
   private stateManager: StateManager;
   private dropdownManager: DropdownManager;
   private uiControlManager: UIControlManager;
+
+  // Collaboration
+  private collaborationManager: CollaborationManager;
+  private collaborationUIManager: CollaborationUIManager;
+  private presenceRenderer: PresenceRenderer;
+  private remoteUsers: User[] = [];
 
   // App state
   private visualizationMode: VisualizationMode = 'default';
@@ -105,6 +114,50 @@ class BezierApp {
       }
     );
 
+    // Initialize Collaboration
+    const WS_SERVER_URL =
+      (import.meta as unknown as { env: { VITE_WS_SERVER_URL?: string } }).env
+        ?.VITE_WS_SERVER_URL || 'ws://localhost:8080';
+    this.collaborationManager = new CollaborationManager(
+      WS_SERVER_URL,
+      this.curveManager.getAllCurves(),
+      {
+        onRemoteChange: curves => {
+          this.stateManager.applyRemoteChanges(curves);
+        },
+        onUsersUpdate: users => {
+          const myId = this.collaborationManager.getUserId();
+          this.remoteUsers = users.filter(u => u.id !== myId);
+          if (this.collaborationUIManager) {
+            // Pass all users but indicate which is the local user
+            this.collaborationUIManager.updateUsers(users, myId);
+          }
+          this.render();
+        },
+        onConnectionStatusChange: connected => {
+          this.notificationManager.showNotification(
+            connected ? 'Connected to collaboration' : 'Disconnected',
+            connected ? 'success' : 'error'
+          );
+        },
+      }
+    );
+
+    // Initialize collaboration UI manager
+    this.collaborationUIManager = new CollaborationUIManager(
+      this.collaborationManager,
+      this.curveManager
+    );
+
+    // Wire collaboration callbacks
+    this.history.setCollaborationCallback((command, state) => {
+      this.collaborationManager.onLocalCommand(command, state);
+    });
+    this.stateManager.setCollaborationManager(this.collaborationManager);
+
+    // Initialize presence renderer
+    this.presenceRenderer = new PresenceRenderer(this.canvas);
+
     this.setupResizeHandler();
     this.render();
   }
@@ -157,6 +210,12 @@ class BezierApp {
       this.visualizationMode,
       animationProgress
     );
+
+    // Render remote user presence if collaboration enabled
+    if (this.collaborationManager.isEnabled()) {
+      this.presenceRenderer.render(this.remoteUsers, allCurves);
+    }
+
     this.uiControlManager.updateButtonStates();
   }
 }

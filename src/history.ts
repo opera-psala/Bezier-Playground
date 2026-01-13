@@ -1,12 +1,12 @@
 import { BezierCurve, Point } from './types';
 
-interface Command {
+export interface Command {
   execute(state: AppState): void;
   undo(state: AppState): void;
   getAffectedCurveId(): string | null;
 }
 
-interface AppState {
+export interface AppState {
   curves: BezierCurve[];
 }
 
@@ -160,6 +160,41 @@ class LoadCurvesCommand implements Command {
   }
 }
 
+// Remote state update command for collaborative editing
+export class RemoteStateUpdateCommand implements Command {
+  constructor(private newCurves: BezierCurve[]) {}
+
+  execute(state: AppState): void {
+    console.log('[RemoteStateUpdateCommand] BEFORE: state.curves.length =', state.curves.length);
+    console.log(
+      '[RemoteStateUpdateCommand] BEFORE: state.curves =',
+      JSON.stringify(state.curves).substring(0, 200)
+    );
+    console.log('[RemoteStateUpdateCommand] NEW curves to set:', this.newCurves.length);
+    console.log(
+      '[RemoteStateUpdateCommand] NEW curves =',
+      JSON.stringify(this.newCurves).substring(0, 200)
+    );
+
+    state.curves.length = 0;
+    state.curves.push(...JSON.parse(JSON.stringify(this.newCurves)));
+
+    console.log('[RemoteStateUpdateCommand] AFTER: state.curves.length =', state.curves.length);
+    console.log(
+      '[RemoteStateUpdateCommand] AFTER: state.curves =',
+      JSON.stringify(state.curves).substring(0, 200)
+    );
+  }
+
+  undo(_state: AppState): void {
+    throw new Error('Cannot undo remote command');
+  }
+
+  getAffectedCurveId(): string | null {
+    return this.newCurves[0]?.id || null;
+  }
+}
+
 interface HistoryNode {
   command: Command | null;
   parent: HistoryNode | null;
@@ -181,6 +216,7 @@ export class HistoryManager {
   private currentNode: HistoryNode;
   private state: AppState;
   private selectedChildIndex: number = 0; // Track which child is selected at decision points
+  private collaborationCallback?: (command: Command, state: AppState) => void;
 
   constructor(initialState: AppState) {
     this.state = initialState;
@@ -192,6 +228,10 @@ export class HistoryManager {
       description: 'Initial state',
     };
     this.currentNode = this.root;
+  }
+
+  setCollaborationCallback(callback: (command: Command, state: AppState) => void): void {
+    this.collaborationCallback = callback;
   }
 
   executeCommand(command: Command): string | null {
@@ -214,7 +254,17 @@ export class HistoryManager {
     this.currentNode = newNode;
     this.selectedChildIndex = 0; // Reset selection when moving
 
+    // Notify collaboration manager
+    if (this.collaborationCallback) {
+      this.collaborationCallback(command, this.state);
+    }
+
     return command.getAffectedCurveId();
+  }
+
+  // Execute remote command without creating history node
+  executeRemoteCommand(command: Command): void {
+    command.execute(this.state);
   }
 
   private getCommandDescription(command: Command): string {
